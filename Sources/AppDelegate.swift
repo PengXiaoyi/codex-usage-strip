@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     private let preferences = AppPreferences.shared
     private let service = CodexQuotaService()
     private let appUpdateController = AppUpdateController()
+    private var menuBar: MenuBarController!
+    private var quotaError: String?
+    private var isRefreshing = false
     private var panel: NSPanel!
     private var usageView: UsageStripView!
     private var refreshTimer: Timer?
@@ -23,11 +26,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         LegacyMigration.migrateApplicationSupport(preferences: preferences)
         try? LaunchAtLoginManager.shared.migrateLegacyRegistrationIfNeeded()
         createPanel()
+        createMenuBar()
         createAboutController()
         createSettingsController()
         restoreOrSetDefaultPosition()
         applyPreferences(rescheduleRefresh: true)
-        panel.orderFrontRegardless()
         enableLaunchAtLoginByDefaultIfNeeded()
         refreshNow()
 
@@ -51,6 +54,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         refreshTimer?.invalidate()
         tickTimer?.invalidate()
         service.stop()
+    }
+
+    private func createMenuBar() {
+        menuBar = MenuBarController()
+        menuBar.onRefresh = { [weak self] in self?.refreshNow() }
+        menuBar.onSettings = { [weak self] in self?.openSettings() }
+        menuBar.onQuit = { NSApp.terminate(nil) }
+    }
+
+    private func updateMenuBar() {
+        menuBar.update(quota: usageView.quota, error: quotaError, refreshing: isRefreshing)
     }
 
     private func createPanel() {
@@ -138,7 +152,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
             let desktopLevel = Int(CGWindowLevelForKey(.desktopWindow)) + 1
             panel.level = NSWindow.Level(rawValue: desktopLevel)
         }
-        panel.orderFrontRegardless()
+        if preferences.showDesktopWidget { panel.orderFrontRegardless() }
+        else { panel.orderOut(nil) }
     }
 
     private func scheduleRefreshTimer() {
@@ -165,19 +180,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     }
 
     private func refreshNow() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        updateMenuBar()
         if usageView.quota == nil { usageView.errorText = nil }
         service.refresh { [weak self] result in
             guard let self else { return }
+            self.isRefreshing = false
             switch result {
             case .success(let quota):
+                self.quotaError = nil
                 self.usageView.errorText = nil
                 self.usageView.quota = quota
                 self.notifyIfNeeded(quota)
             case .failure(let error):
+                self.quotaError = error.localizedDescription
                 if self.usageView.quota == nil {
                     self.usageView.errorText = error.localizedDescription
                 }
             }
+            self.updateMenuBar()
         }
     }
 
@@ -338,7 +360,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     }
 
     @objc private func openSettings() { settingsController?.present() }
-    @objc private func tickTimerFired() { usageView.now = Date() }
+    @objc private func tickTimerFired() {
+        usageView.now = Date()
+        updateMenuBar()
+    }
     @objc private func refreshTimerFired() { refreshNow() }
     @objc private func refreshAction() { refreshNow() }
     @objc private func resetPosition() { moveToBottomRight() }

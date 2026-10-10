@@ -34,7 +34,7 @@ enum SelfTest {
         try expect(ThemeStore.shared.builtIns.count == 6, "应有 6 套内置皮肤")
         try expect(Set(ThemeStore.shared.builtIns.map(\.id)).count == 6, "皮肤 ID 必须唯一")
         try expect(BackgroundImageMode.allCases.count == 5, "应有 5 种背景图片显示方式")
-        try expect(AppInfo.version == "2.2.0" && AppInfo.build == "5", "应用版本信息不一致")
+        try expect(AppInfo.version == "2.3.0" && AppInfo.build == "6", "应用版本信息不一致")
         try expect(DisplayMode.allCases.allSatisfy {
             $0.minimumSize.width < $0.size.width && $0.maximumSize.width > $0.size.width
                 && abs(($0.size.width / $0.size.height) - ($0.minimumSize.width / $0.minimumSize.height)) < 0.0001
@@ -55,6 +55,16 @@ enum SelfTest {
             windowDurationMins: 10_080,
             updatedAt: now
         )
+        try expect(MenuBarText.title(quota: quota, error: nil, now: now) == "28% · 2天0时", "菜单栏应显示余量与倒计时")
+        try expect(MenuBarText.title(quota: nil, error: nil) == "Codex · …", "首次加载状态错误")
+        try expect(MenuBarText.title(quota: nil, error: "offline") == "Codex · —", "读取失败状态错误")
+        for (seconds, expected) in [(0, "待重置"), (-1, "待重置"), (59, "不足1分"),
+                                    (60, "1分"), (3599, "59分"), (3600, "1时0分"),
+                                    (86399, "23时59分"), (86400, "1天0时")] {
+            try expect(MenuBarText.countdown(to: now.addingTimeInterval(Double(seconds)), now: now) == expected,
+                       "菜单栏倒计时边界错误")
+        }
+        print("PASS menu-bar-states-and-countdown")
         let phrase = PhraseEngine.phrase(
             for: quota,
             state: .critical,
@@ -138,9 +148,15 @@ enum SelfTest {
         let configurationData = try configurationEncoder.encode(portableConfiguration)
         let decodedConfiguration = try ConfigurationStore.decodeForValidation(configurationData)
         try expect(decodedConfiguration.preferences.themeID == "graphite", "配置导出格式无法往返")
+        try expect(decodedConfiguration.preferences.showDesktopWidget == nil, "旧配置应兼容缺失的桌面悬浮条开关")
+        var portablePreferences = portableConfiguration.preferences
+        portablePreferences.showDesktopWidget = false
+        let preferencesData = try JSONEncoder().encode(portablePreferences)
+        let decodedPreferences = try JSONDecoder().decode(PortablePreferences.self, from: preferencesData)
+        try expect(decodedPreferences.showDesktopWidget == false, "桌面悬浮条开关无法往返")
 
         print("PASS themes=6")
-        print("PASS version=2.2.0 build=5")
+        print("PASS version=2.3.0 build=6")
         print("PASS background-modes=5")
         print("PASS four-corner-resize-bounds")
         print("PASS phrase-variables")

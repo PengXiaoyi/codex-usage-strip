@@ -179,6 +179,11 @@ final class AppPreferences {
         set { defaults.set(newValue.rawValue, forKey: "displayMode") }
     }
 
+    var showDesktopWidget: Bool {
+        get { defaults.bool(forKey: "showDesktopWidget") }
+        set { defaults.set(newValue, forKey: "showDesktopWidget") }
+    }
+
     var alwaysOnTop: Bool {
         get { defaults.object(forKey: "alwaysOnTop") == nil ? true : defaults.bool(forKey: "alwaysOnTop") }
         set { defaults.set(newValue, forKey: "alwaysOnTop") }

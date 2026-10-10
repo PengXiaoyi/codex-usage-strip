@@ -15,6 +15,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     private let themePopup = NSPopUpButton()
     private let themeDescription = NSTextField(labelWithString: "")
     private let modeControl = NSSegmentedControl(labels: DisplayMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
+    private let desktopWidgetSwitch = NSSwitch()
     private let alwaysOnTopSwitch = NSSwitch()
     private let launchAtLoginSwitch = NSSwitch()
     private let notificationsSwitch = NSSwitch()
@@ -69,7 +70,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         preview.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(preview)
 
-        let title = NSTextField(labelWithString: "把额度变成桌面的一口呼吸")
+        let title = NSTextField(labelWithString: "菜单栏余量，一眼可见")
         title.font = NSFont.systemFont(ofSize: 20, weight: .bold)
         let subtitle = NSTextField(labelWithString: "所有数据仅通过本机 Codex 读取，不上传账户信息。")
         subtitle.font = NSFont.systemFont(ofSize: 12)
@@ -118,6 +119,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         modeControl.target = self
         modeControl.action = #selector(modeChanged)
 
+        desktopWidgetSwitch.target = self
+        desktopWidgetSwitch.action = #selector(switchChanged)
         alwaysOnTopSwitch.target = self
         alwaysOnTopSwitch.action = #selector(switchChanged)
         launchAtLoginSwitch.target = self
@@ -172,6 +175,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         stack.distribution = .fill
         stack.spacing = 13
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
+        stack.addArrangedSubview(row(label: "桌面悬浮条", control: desktopWidgetSwitch))
         stack.addArrangedSubview(row(label: "皮肤", control: themeControl))
         stack.addArrangedSubview(row(label: "背景图片", control: backgroundControl))
         stack.addArrangedSubview(row(label: "图片方式", control: backgroundModePopup))
@@ -317,6 +321,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         }
         updateThemeDescription()
         modeControl.selectedSegment = DisplayMode.allCases.firstIndex(of: preferences.displayMode) ?? 1
+        desktopWidgetSwitch.state = preferences.showDesktopWidget ? .on : .off
         alwaysOnTopSwitch.state = preferences.alwaysOnTop ? .on : .off
         launchAtLoginSwitch.state = isLaunchAtLoginConfigured ? .on : .off
         notificationsSwitch.state = preferences.notificationsEnabled ? .on : .off
@@ -395,6 +400,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     }
 
     @objc private func switchChanged() {
+        preferences.showDesktopWidget = desktopWidgetSwitch.state == .on
         preferences.alwaysOnTop = alwaysOnTopSwitch.state == .on
         preferences.notificationsEnabled = notificationsSwitch.state == .on
         onPreferencesChanged?()
