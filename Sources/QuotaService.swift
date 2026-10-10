@@ -60,7 +60,7 @@ final class CodexQuotaService {
 
     private func ensureServer() throws {
         if let process, process.isRunning { return }
-        guard let codexPath = resolveCodexPath() else { throw QuotaError.codexNotFound }
+        guard let codexPath = Self.resolveCodexPath() else { throw QuotaError.codexNotFound }
 
         let newProcess = Process()
         let stdout = Pipe()
@@ -132,17 +132,22 @@ final class CodexQuotaService {
         }
     }
 
-    private func resolveCodexPath() -> String? {
-        let home = NSHomeDirectory()
+    static func resolveCodexPath(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        home: String = NSHomeDirectory(),
+        isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) -> String? {
+        // App bundle layouts are compatibility fallbacks, not stable public paths.
         let candidates = [
-            ProcessInfo.processInfo.environment["CODEX_PATH"],
+            environment["CODEX_PATH"],
+            "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
             "/Applications/ChatGPT.app/Contents/Resources/codex",
             "/Applications/Codex.app/Contents/Resources/codex",
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex",
             "\(home)/.local/bin/codex"
         ].compactMap { $0 }
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        return candidates.first(where: isExecutable)
     }
 
     static func parseWeeklyQuota(from object: [String: Any]) -> WeeklyQuota? {

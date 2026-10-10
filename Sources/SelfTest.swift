@@ -2,6 +2,35 @@ import Foundation
 
 enum SelfTest {
     static func run() throws {
+        let currentCodex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
+        let legacyCodex = "/Applications/ChatGPT.app/Contents/Resources/codex"
+        let customCodex = "/custom/bin/codex"
+        let fallbackPaths = [
+            legacyCodex,
+            "/Applications/Codex.app/Contents/Resources/codex",
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex",
+            "/test-home/.local/bin/codex"
+        ]
+        func resolve(_ available: Set<String>, override: String? = nil) -> String? {
+            CodexQuotaService.resolveCodexPath(
+                environment: override.map { ["CODEX_PATH": $0] } ?? [:],
+                home: "/test-home",
+                isExecutable: { available.contains($0) }
+            )
+        }
+        try expect(resolve([currentCodex]) == currentCodex, "未识别新版 ChatGPT 内置 Codex")
+        try expect(resolve([currentCodex, legacyCodex]) == currentCodex, "应优先使用新版 ChatGPT 路径")
+        try expect(resolve([currentCodex, customCodex], override: customCodex) == customCodex,
+                   "CODEX_PATH 应优先于内置路径")
+        try expect(resolve([currentCodex], override: customCodex) == currentCodex,
+                   "不可执行的 CODEX_PATH 应继续回退")
+        for path in fallbackPaths {
+            try expect(resolve([path]) == path, "旧路径或独立 CLI 回退失败")
+        }
+        try expect(resolve([]) == nil, "没有可执行 Codex 时应返回 nil")
+        print("PASS codex-path-discovery")
+
         try expect(ThemeStore.shared.builtIns.count == 6, "应有 6 套内置皮肤")
         try expect(Set(ThemeStore.shared.builtIns.map(\.id)).count == 6, "皮肤 ID 必须唯一")
         try expect(BackgroundImageMode.allCases.count == 5, "应有 5 种背景图片显示方式")

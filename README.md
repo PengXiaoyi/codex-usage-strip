@@ -73,7 +73,13 @@ make test
 
 - macOS 14 或更高版本。
 - 本机已安装并登录 ChatGPT/Codex，或已安装可执行的 Codex CLI。
-- 当前版本优先读取 `/Applications/ChatGPT.app/Contents/Resources/codex`，也支持 `CODEX_PATH` 指定路径。
+- 优先使用 `CODEX_PATH` 指定的可执行文件；未指定或不可执行时，按以下顺序查找：
+  1. `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`（新版 ChatGPT）。
+  2. `/Applications/ChatGPT.app/Contents/Resources/codex`（旧版 ChatGPT）。
+  3. `/Applications/Codex.app/Contents/Resources/codex`。
+  4. `/opt/homebrew/bin/codex`、`/usr/local/bin/codex`、`~/.local/bin/codex`。
+
+应用包内的路径用于兼容不同版本，不应视为官方承诺稳定的安装位置。官方 CLI 安装方式见 [Codex CLI 文档](https://developers.openai.com/codex/cli/)。额度查询独立启动本机 `codex app-server --stdio`，不连接共享 daemon socket。
 
 Codex Usage Strip 使用本机 Codex 的 `account/rateLimits/read` 接口读取额度。该接口不是稳定的公开兼容承诺；上游格式变化时，Codex Usage Strip 可能需要同步更新。
 
