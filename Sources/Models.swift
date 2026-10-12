@@ -197,7 +197,11 @@ final class AppPreferences {
     }
 
     var showDesktopCard: Bool {
-        get { defaults.object(forKey: "showDesktopCard") == nil ? true : defaults.bool(forKey: "showDesktopCard") }
+        get {
+            if defaults.object(forKey: "showDesktopCard") != nil { return defaults.bool(forKey: "showDesktopCard") }
+            if defaults.object(forKey: "showDesktopWidget") != nil { return defaults.bool(forKey: "showDesktopWidget") }
+            return true
+        }
         set { defaults.set(newValue, forKey: "showDesktopCard") }
     }
 

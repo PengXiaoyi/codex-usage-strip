@@ -7,9 +7,10 @@ enum SelfTest {
         try expect(BackgroundImageMode.allCases.count == 5, "应有 5 种背景图片显示方式")
         try expect(AppInfo.version == "2.3.2" && AppInfo.build == "8", "应用版本信息不一致")
         let modernCodex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+        let wrapperCodex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
         let legacyCodex = "/Applications/ChatGPT.app/Contents/Resources/codex"
         let userCodex = "/test/Applications/Codex.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
-        for executable in [modernCodex, legacyCodex, userCodex, "/opt/homebrew/bin/codex", "/custom/bin/codex"] {
+        for executable in [modernCodex, wrapperCodex, legacyCodex, userCodex, "/opt/homebrew/bin/codex", "/custom/bin/codex"] {
             try expect(CodexQuotaService.resolveCodexPath(
                 environment: ["CODEX_PATH": "/missing/codex", "PATH": "/custom/bin"],
                 home: "/test",
@@ -60,6 +61,16 @@ enum SelfTest {
             windowDurationMins: 10_080,
             updatedAt: now
         )
+        try expect(MenuBarText.title(quota: quota, error: nil, now: now) == "28% · 2天0时", "菜单栏应显示余量与倒计时")
+        try expect(MenuBarText.title(quota: nil, error: nil) == "Codex · …", "首次加载状态错误")
+        try expect(MenuBarText.title(quota: nil, error: "offline") == "Codex · —", "读取失败状态错误")
+        for (seconds, expected) in [(0, "待重置"), (-1, "待重置"), (59, "不足1分"),
+                                    (60, "1分"), (3599, "59分"), (3600, "1时0分"),
+                                    (86399, "23时59分"), (86400, "1天0时")] {
+            try expect(MenuBarText.countdown(to: now.addingTimeInterval(Double(seconds)), now: now) == expected,
+                       "菜单栏倒计时边界错误")
+        }
+        print("PASS menu-bar-states-and-countdown")
         let phrase = PhraseEngine.phrase(
             for: quota,
             state: .critical,
@@ -166,6 +177,13 @@ enum SelfTest {
         let legacyConfiguration = try ConfigurationStore.decodeForValidation(legacyData)
         try expect(legacyConfiguration.preferences.showDesktopCard == nil
             && legacyConfiguration.preferences.displayMode == .statusBar, "无法读取旧版状态栏配置")
+        try expect(!legacyConfiguration.preferences.desktopCardVisible, "旧版状态栏配置不应显示卡片")
+        var upstreamPreferences = portableConfiguration.preferences
+        upstreamPreferences.showDesktopCard = nil
+        upstreamPreferences.showDesktopWidget = false
+        let upstreamData = try JSONEncoder().encode(upstreamPreferences)
+        let upstreamDecoded = try JSONDecoder().decode(PortablePreferences.self, from: upstreamData)
+        try expect(!upstreamDecoded.desktopCardVisible, "未保留上游桌面悬浮条隐藏设置")
 
         print("PASS themes=10")
         print("PASS version=2.3.2 build=8")

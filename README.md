@@ -2,14 +2,16 @@
 
 <p align="center"><img src="docs/images/AppIcon.png" width="128" alt="Codex Usage Strip 图标"></p>
 
-Codex Usage Strip 是一个常驻 macOS 桌面的 Codex 每周额度组件。它只显示剩余额度、进度条和刷新倒计时，不承担聊天或任务执行。
+Codex Usage Strip 是一个极简的 macOS 菜单栏 Codex 每周额度组件。顶部状态栏显示圆形进度环和剩余百分比，悬浮提示显示重置倒计时。点击后可刷新、显示或隐藏桌面卡片、打开设置和退出，不承担聊天或任务执行。
+
+可选桌面卡片效果：
 
 ![Codex Usage Strip 桌面效果](docs/images/Codex-Usage-Strip-live.png)
 
 ## 核心能力
 
 - 只读取 Codex 总额度中的每周窗口，忽略模型独立额度。
-- 同时显示剩余百分比、进度条、重置时间和倒计时。
+- 读取失败时在菜单中提示；已有余量会保留并标明是上次数据。
 - 支持浮在所有窗口之上，或贴近桌面层显示。
 - 四角等比缩放，拖拽区域带明确光标反馈。
 - 顶部状态栏始终显示圆环和剩余百分比，桌面卡片可通过状态栏菜单或设置显示、隐藏，并记住选择。
@@ -79,6 +81,8 @@ make test
 - 自动检测 `/Applications` 和用户 `Applications` 下的 ChatGPT/Codex，兼容内嵌 `codex-cli/CodexCLI.app/Contents/MacOS/codex` 与旧版路径；也支持常见 CLI 安装位置、当前进程的 `PATH` 和优先使用的 `CODEX_PATH`。
 
 从源码构建后，可运行 `".artifacts/Codex Usage Strip.app/Contents/MacOS/CodexUsageStrip" --check-quota` 检查真实额度读取。
+
+应用包内的路径用于兼容不同版本，不应视为官方承诺稳定的安装位置。官方 CLI 安装方式见 [Codex CLI 文档](https://developers.openai.com/codex/cli/)。额度查询独立启动本机 `codex app-server --stdio`，不连接共享 daemon socket。
 
 Codex Usage Strip 使用本机 Codex 的 `account/rateLimits/read` 接口读取额度。该接口不是稳定的公开兼容承诺；上游格式变化时，Codex Usage Strip 可能需要同步更新。
 

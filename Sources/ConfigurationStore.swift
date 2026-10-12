@@ -32,6 +32,11 @@ struct PortablePreferences: Codable {
     let automaticUpdateChecks: Bool
     let windowSizes: [String: PortableSize]
     var showDesktopCard: Bool? = nil
+    var showDesktopWidget: Bool? = nil
+
+    var desktopCardVisible: Bool {
+        showDesktopCard ?? showDesktopWidget ?? (displayMode != .statusBar)
+    }
 }
 
 struct CodexUsageStripConfiguration: Codable {
@@ -84,7 +89,8 @@ enum ConfigurationStore {
                 phraseSet: preferences.phraseSet,
                 automaticUpdateChecks: preferences.automaticUpdateChecks,
                 windowSizes: windowSizes,
-                showDesktopCard: preferences.showDesktopCard
+                showDesktopCard: preferences.showDesktopCard,
+                showDesktopWidget: preferences.showDesktopCard
             ),
             selectedTheme: themeStore.theme(id: preferences.themeID),
             background: background
@@ -148,7 +154,7 @@ enum ConfigurationStore {
         let imported = configuration.preferences
         preferences.themeID = imported.themeID
         preferences.displayMode = imported.displayMode == .statusBar ? .strip : imported.displayMode
-        preferences.showDesktopCard = imported.showDesktopCard ?? (imported.displayMode != .statusBar)
+        preferences.showDesktopCard = imported.desktopCardVisible
         preferences.alwaysOnTop = imported.alwaysOnTop
         preferences.refreshInterval = imported.refreshInterval
         preferences.criticalThreshold = imported.criticalThreshold

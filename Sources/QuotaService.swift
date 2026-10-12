@@ -137,6 +137,7 @@ final class CodexQuotaService {
         home: String = NSHomeDirectory(),
         isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
     ) -> String? {
+        // App bundle layouts are compatibility fallbacks, not stable public paths.
         let bundledCandidates = ["/Applications", "\(home)/Applications"].flatMap { directory in
             ["ChatGPT.app", "Codex.app"].flatMap { app in
                 [

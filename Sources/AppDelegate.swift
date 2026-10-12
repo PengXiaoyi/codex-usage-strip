@@ -26,6 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     private let preferences = AppPreferences.shared
     private let service = CodexQuotaService()
     private let appUpdateController = AppUpdateController()
+    private var quotaError: String?
+    private var isRefreshing = false
     private var panel: NSPanel!
     private var statusItem: NSStatusItem?
     private var materialView: NSVisualEffectView!
@@ -216,20 +218,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     }
 
     private func refreshNow() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        updateStatusItem(rebuildMenu: true)
         if usageView.quota == nil { usageView.errorText = nil }
         service.refresh { [weak self] result in
             guard let self else { return }
+            self.isRefreshing = false
             switch result {
             case .success(let quota):
+                self.quotaError = nil
                 self.usageView.errorText = nil
                 self.usageView.quota = quota
                 self.notifyIfNeeded(quota)
             case .failure(let error):
+                self.quotaError = error.localizedDescription
                 if self.usageView.quota == nil {
                     self.usageView.errorText = error.localizedDescription
                 }
             }
-            self.updateStatusItem()
+            self.updateStatusItem(rebuildMenu: true)
         }
     }
 
@@ -397,8 +405,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
 
     private func makeControlMenu() -> NSMenu {
         let menu = NSMenu()
+        if let quotaError {
+            let message = usageView.quota == nil ? quotaError : "刷新失败，显示上次数据：\(quotaError)"
+            menu.addItem(NSMenuItem(title: message, action: nil, keyEquivalent: ""))
+            menu.addItem(.separator())
+        }
         menu.addItem(menuItem("打开设置…", #selector(openSettings)))
-        menu.addItem(menuItem("立即刷新", #selector(refreshAction)))
+        let refresh = menuItem(isRefreshing ? "正在刷新…" : "立即刷新", #selector(refreshAction))
+        refresh.isEnabled = !isRefreshing
+        menu.addItem(refresh)
         let desktopCard = menuItem("显示桌面卡片", #selector(toggleDesktopCard))
         desktopCard.state = preferences.showDesktopCard ? .on : .off
         menu.addItem(desktopCard)

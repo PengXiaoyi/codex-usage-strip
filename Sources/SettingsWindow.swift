@@ -72,7 +72,7 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         preview.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(preview)
 
-        let title = NSTextField(labelWithString: "把额度变成桌面的一口呼吸")
+        let title = NSTextField(labelWithString: "菜单栏余量，一眼可见")
         title.font = NSFont.systemFont(ofSize: 20, weight: .bold)
         let subtitle = NSTextField(labelWithString: "所有数据仅通过本机 Codex 读取，不上传账户信息。")
         subtitle.font = NSFont.systemFont(ofSize: 12)
