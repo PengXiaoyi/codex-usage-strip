@@ -2,39 +2,45 @@ import Foundation
 
 enum SelfTest {
     static func run() throws {
-        let currentCodex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
-        let legacyCodex = "/Applications/ChatGPT.app/Contents/Resources/codex"
-        let customCodex = "/custom/bin/codex"
-        let fallbackPaths = [
-            legacyCodex,
-            "/Applications/Codex.app/Contents/Resources/codex",
-            "/opt/homebrew/bin/codex",
-            "/usr/local/bin/codex",
-            "/test-home/.local/bin/codex"
-        ]
-        func resolve(_ available: Set<String>, override: String? = nil) -> String? {
-            CodexQuotaService.resolveCodexPath(
-                environment: override.map { ["CODEX_PATH": $0] } ?? [:],
-                home: "/test-home",
-                isExecutable: { available.contains($0) }
-            )
-        }
-        try expect(resolve([currentCodex]) == currentCodex, "未识别新版 ChatGPT 内置 Codex")
-        try expect(resolve([currentCodex, legacyCodex]) == currentCodex, "应优先使用新版 ChatGPT 路径")
-        try expect(resolve([currentCodex, customCodex], override: customCodex) == customCodex,
-                   "CODEX_PATH 应优先于内置路径")
-        try expect(resolve([currentCodex], override: customCodex) == currentCodex,
-                   "不可执行的 CODEX_PATH 应继续回退")
-        for path in fallbackPaths {
-            try expect(resolve([path]) == path, "旧路径或独立 CLI 回退失败")
-        }
-        try expect(resolve([]) == nil, "没有可执行 Codex 时应返回 nil")
-        print("PASS codex-path-discovery")
-
-        try expect(ThemeStore.shared.builtIns.count == 6, "应有 6 套内置皮肤")
-        try expect(Set(ThemeStore.shared.builtIns.map(\.id)).count == 6, "皮肤 ID 必须唯一")
+        try expect(ThemeStore.shared.builtIns.count == 10, "应有 10 套内置皮肤")
+        try expect(Set(ThemeStore.shared.builtIns.map(\.id)).count == 10, "皮肤 ID 必须唯一")
         try expect(BackgroundImageMode.allCases.count == 5, "应有 5 种背景图片显示方式")
-        try expect(AppInfo.version == "2.3.0" && AppInfo.build == "6", "应用版本信息不一致")
+        try expect(AppInfo.version == "2.3.2" && AppInfo.build == "8", "应用版本信息不一致")
+        let modernCodex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+        let wrapperCodex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex"
+        let legacyCodex = "/Applications/ChatGPT.app/Contents/Resources/codex"
+        let userCodex = "/test/Applications/Codex.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex"
+        for executable in [modernCodex, wrapperCodex, legacyCodex, userCodex, "/opt/homebrew/bin/codex", "/custom/bin/codex"] {
+            try expect(CodexQuotaService.resolveCodexPath(
+                environment: ["CODEX_PATH": "/missing/codex", "PATH": "/custom/bin"],
+                home: "/test",
+                isExecutable: { $0 == executable }
+            ) == executable, "未能检测 Codex 路径：\(executable)")
+        }
+        try expect(CodexQuotaService.resolveCodexPath(
+            environment: ["CODEX_PATH": "/override/codex"], home: "/test",
+            isExecutable: { $0 == "/override/codex" || $0 == modernCodex }
+        ) == "/override/codex", "CODEX_PATH 应优先于自动检测")
+        try expect(CodexQuotaService.resolveCodexPath(
+            environment: ["PATH": ":relative/bin"], home: "/test", isExecutable: { _ in false }
+        ) == nil, "无有效 Codex 安装时应返回空路径")
+        let installedExecutable = "/Applications/Codex Usage Strip.app/Contents/MacOS/CodexUsageStrip"
+        var loginAgent: [String: Any] = [
+            "Label": "app.codexusagestrip.desktop",
+            "ProgramArguments": ["/missing/development/CodexUsageStrip"],
+            "RunAtLoad": true,
+            "KeepAlive": false
+        ]
+        try expect(!LaunchAtLoginManager.fallbackMatches(loginAgent, executable: installedExecutable),
+                   "失效开发版路径不能视为有效开机启动")
+        loginAgent["ProgramArguments"] = [installedExecutable]
+        let loginAgentData = try PropertyListSerialization.data(fromPropertyList: loginAgent, format: .xml, options: 0)
+        let decodedAgent = try PropertyListSerialization.propertyList(from: loginAgentData, options: [], format: nil) as! [String: Any]
+        try expect(LaunchAtLoginManager.fallbackMatches(decodedAgent, executable: installedExecutable),
+                   "正式安装路径的开机启动配置无法往返")
+        loginAgent["RunAtLoad"] = false
+        try expect(!LaunchAtLoginManager.fallbackMatches(loginAgent, executable: installedExecutable),
+                   "未启用登录时运行的配置不能视为有效开机启动")
         try expect(DisplayMode.allCases.allSatisfy {
             $0.minimumSize.width < $0.size.width && $0.maximumSize.width > $0.size.width
                 && abs(($0.size.width / $0.size.height) - ($0.minimumSize.width / $0.minimumSize.height)) < 0.0001
@@ -72,6 +78,18 @@ enum SelfTest {
             now: now
         )
         try expect(phrase.contains("28%") && phrase.contains("2天"), "话术变量替换失败")
+        try expect(
+            PhraseEngine.coarseCountdown(to: now.addingTimeInterval(2 * 86_400 + 3 * 3_600 + 59 * 60), now: now) == "2天 3小时"
+                && PhraseEngine.coarseCountdown(to: now.addingTimeInterval(45 * 60), now: now) == "不足1小时",
+            "粗粒度倒计时格式错误"
+        )
+        let completeRing = StatusRingGeometry.displayedProgress(for: 100, diameter: 12)
+        let roundedCompleteRing = StatusRingGeometry.displayedProgress(for: 99.5, diameter: 12)
+        let gappedRing = StatusRingGeometry.displayedProgress(for: 98, diameter: 12)
+        try expect(
+            completeRing == 1 && roundedCompleteRing == 1 && gappedRing < 0.98 && gappedRing > 0.94,
+            "状态栏圆环缺口规则错误"
+        )
 
         let fixture: [String: Any] = [
             "result": [
@@ -138,7 +156,8 @@ enum SelfTest {
                 backgroundImageMode: .fill,
                 phraseSet: .standard,
                 automaticUpdateChecks: true,
-                windowSizes: ["strip": PortableSize(DisplayMode.strip.size)]
+                windowSizes: ["strip": PortableSize(DisplayMode.strip.size)],
+                showDesktopCard: false
             ),
             selectedTheme: ThemeStore.shared.builtIns[0],
             background: nil
@@ -148,21 +167,35 @@ enum SelfTest {
         let configurationData = try configurationEncoder.encode(portableConfiguration)
         let decodedConfiguration = try ConfigurationStore.decodeForValidation(configurationData)
         try expect(decodedConfiguration.preferences.themeID == "graphite", "配置导出格式无法往返")
-        try expect(decodedConfiguration.preferences.showDesktopWidget == nil, "旧配置应兼容缺失的桌面悬浮条开关")
-        var portablePreferences = portableConfiguration.preferences
-        portablePreferences.showDesktopWidget = false
-        let preferencesData = try JSONEncoder().encode(portablePreferences)
-        let decodedPreferences = try JSONDecoder().decode(PortablePreferences.self, from: preferencesData)
-        try expect(decodedPreferences.showDesktopWidget == false, "桌面悬浮条开关无法往返")
+        try expect(decodedConfiguration.preferences.showDesktopCard == false, "未保留卡片隐藏设置")
+        var legacyObject = try JSONSerialization.jsonObject(with: configurationData) as! [String: Any]
+        var legacyPreferences = legacyObject["preferences"] as! [String: Any]
+        legacyPreferences.removeValue(forKey: "showDesktopCard")
+        legacyPreferences["displayMode"] = "statusBar"
+        legacyObject["preferences"] = legacyPreferences
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+        let legacyConfiguration = try ConfigurationStore.decodeForValidation(legacyData)
+        try expect(legacyConfiguration.preferences.showDesktopCard == nil
+            && legacyConfiguration.preferences.displayMode == .statusBar, "无法读取旧版状态栏配置")
+        try expect(!legacyConfiguration.preferences.desktopCardVisible, "旧版状态栏配置不应显示卡片")
+        var upstreamPreferences = portableConfiguration.preferences
+        upstreamPreferences.showDesktopCard = nil
+        upstreamPreferences.showDesktopWidget = false
+        let upstreamData = try JSONEncoder().encode(upstreamPreferences)
+        let upstreamDecoded = try JSONDecoder().decode(PortablePreferences.self, from: upstreamData)
+        try expect(!upstreamDecoded.desktopCardVisible, "未保留上游桌面悬浮条隐藏设置")
 
-        print("PASS themes=6")
-        print("PASS version=2.3.0 build=6")
+        print("PASS themes=10")
+        print("PASS version=2.3.2 build=8")
+        print("PASS codex-path-detection")
+        print("PASS launch-at-login-stale-path-validation")
         print("PASS background-modes=5")
         print("PASS four-corner-resize-bounds")
         print("PASS phrase-variables")
         print("PASS weekly-parser")
         print("PASS total-quota-only")
         print("PASS portable-configuration")
+        print("PASS desktop-card-configuration-compatibility")
         print("PASS sparkle-default-disabled=\(!AppInfo.sparkleConfigurationReady)")
     }
 

@@ -82,6 +82,34 @@ final class ThemeStore {
             track: "6B62FF26", accent: "3FE9FF", warning: "FFCE47", danger: "FF3D8E",
             primaryText: "F5F2FF", secondaryText: "9E9AC5", glow: "3FE9FF8A",
             cornerRadius: 14, progressStyle: .neon, fontName: "Futura", usesMonospacedDigits: true
+        ),
+        ThemeDefinition(
+            schemaVersion: 1, id: "system-light", name: "System Light", subtitle: "明亮、安静、接近 macOS 系统界面",
+            backgroundTop: "FFFFFFE6", backgroundBottom: "F2F2F7E6", border: "00000010",
+            track: "00000012", accent: "007AFF", warning: "FF9500", danger: "FF3B30",
+            primaryText: "1D1D1F", secondaryText: "6E6E73", glow: "007AFF18",
+            cornerRadius: 16, progressStyle: .rounded, fontName: nil, usesMonospacedDigits: true
+        ),
+        ThemeDefinition(
+            schemaVersion: 1, id: "system-dark", name: "System Dark", subtitle: "深色材质与克制的系统蓝",
+            backgroundTop: "2C2C2EE6", backgroundBottom: "1C1C1EE6", border: "FFFFFF14",
+            track: "FFFFFF14", accent: "0A84FF", warning: "FF9F0A", danger: "FF453A",
+            primaryText: "F5F5F7", secondaryText: "98989D", glow: "0A84FF24",
+            cornerRadius: 16, progressStyle: .rounded, fontName: nil, usesMonospacedDigits: true
+        ),
+        ThemeDefinition(
+            schemaVersion: 1, id: "system-blue", name: "System Blue", subtitle: "蓝色层次与轻量玻璃感",
+            backgroundTop: "173A53E0", backgroundBottom: "0D2437E0", border: "64D2FF24",
+            track: "FFFFFF14", accent: "0A84FF", warning: "FF9F0A", danger: "FF453A",
+            primaryText: "F5F5F7", secondaryText: "B7CAD9", glow: "0A84FF24",
+            cornerRadius: 16, progressStyle: .rounded, fontName: nil, usesMonospacedDigits: true
+        ),
+        ThemeDefinition(
+            schemaVersion: 1, id: "square-light", name: "Square Light", subtitle: "方形容器、蓝色圆环与轻盈留白",
+            backgroundTop: "F7F7F9E8", backgroundBottom: "EAEAEFE8", border: "00000012",
+            track: "00000014", accent: "007AFF", warning: "FF9500", danger: "FF3B30",
+            primaryText: "1D1D1F", secondaryText: "6E6E73", glow: "007AFF18",
+            cornerRadius: 20, progressStyle: .rounded, fontName: nil, usesMonospacedDigits: true
         )
     ]
 

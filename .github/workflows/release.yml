@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v2.3.0"
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 permissions:
   contents: write
@@ -19,6 +28,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Validate tag and update keys
         env:
@@ -27,9 +38,9 @@ jobs:
         run: |
           set -euo pipefail
           app_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Info.plist)"
-          tag_version="${GITHUB_REF_NAME#v}"
+          tag_version="${RELEASE_TAG#v}"
           if [[ "$app_version" != "$tag_version" ]]; then
-            echo "Tag $GITHUB_REF_NAME does not match Info.plist version $app_version" >&2
+            echo "Tag $RELEASE_TAG does not match Info.plist version $app_version" >&2
             exit 1
           fi
           for secret_name in SPARKLE_PUBLIC_ED_KEY SPARKLE_PRIVATE_KEY; do
@@ -44,7 +55,7 @@ jobs:
           echo "APP_VERSION=$app_version" >> "$GITHUB_ENV"
           echo "RELEASE_CHANNEL=stable" >> "$GITHUB_ENV"
           echo "CODEX_USAGE_STRIP_UPDATE_FEED_URL=https://${repository_owner}.github.io/${repository_name}/appcast.xml" >> "$GITHUB_ENV"
-          echo "SPARKLE_DOWNLOAD_URL_PREFIX=https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/" >> "$GITHUB_ENV"
+          echo "SPARKLE_DOWNLOAD_URL_PREFIX=https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/" >> "$GITHUB_ENV"
 
       - name: Build ad-hoc signed release
         env:
@@ -63,14 +74,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            ".release/Codex-Usage-Strip-${APP_VERSION}-stable.dmg" \
-            ".release/updates/Codex-Usage-Strip-${APP_VERSION}-stable.zip" \
-            ".release/SHA256SUMS" \
-            --verify-tag \
-            --title "Codex Usage Strip ${APP_VERSION}" \
-            --draft \
-            --generate-notes
+          assets=(
+            ".release/Codex-Usage-Strip-${APP_VERSION}-stable.dmg"
+            ".release/updates/Codex-Usage-Strip-${APP_VERSION}-stable.zip"
+            ".release/SHA256SUMS"
+          )
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            gh release edit "$RELEASE_TAG" --title "Codex Usage Strip ${APP_VERSION}"
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --verify-tag \
+              --title "Codex Usage Strip ${APP_VERSION}" \
+              --draft \
+              --generate-notes
+          fi
 
       - name: Prepare update feed
         run: |
@@ -100,4 +118,4 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false
+        run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false

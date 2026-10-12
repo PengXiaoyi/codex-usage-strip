@@ -138,16 +138,26 @@ final class CodexQuotaService {
         isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
     ) -> String? {
         // App bundle layouts are compatibility fallbacks, not stable public paths.
-        let candidates = [
-            environment["CODEX_PATH"],
-            "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex",
-            "/Applications/ChatGPT.app/Contents/Resources/codex",
-            "/Applications/Codex.app/Contents/Resources/codex",
+        let bundledCandidates = ["/Applications", "\(home)/Applications"].flatMap { directory in
+            ["ChatGPT.app", "Codex.app"].flatMap { app in
+                [
+                    "\(directory)/\(app)/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+                    "\(directory)/\(app)/Contents/Resources/codex",
+                    "\(directory)/\(app)/Contents/Resources/codex-cli/bin/codex"
+                ]
+            }
+        }
+        let cliCandidates = [
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex",
             "\(home)/.local/bin/codex"
-        ].compactMap { $0 }
-        return candidates.first(where: isExecutable)
+        ]
+        let pathCandidates = (environment["PATH"] ?? "").split(separator: ":")
+            .filter { $0.hasPrefix("/") }
+            .map { "\($0)/codex" }
+        let candidates = [environment["CODEX_PATH"]].compactMap { $0 }
+            + bundledCandidates + cliCandidates + pathCandidates
+        return candidates.first { !$0.isEmpty && isExecutable($0) }
     }
 
     static func parseWeeklyQuota(from object: [String: Any]) -> WeeklyQuota? {

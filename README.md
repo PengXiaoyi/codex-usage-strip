@@ -2,25 +2,26 @@
 
 <p align="center"><img src="docs/images/AppIcon.png" width="128" alt="Codex Usage Strip 图标"></p>
 
-Codex Usage Strip 是一个极简的 macOS 菜单栏 Codex 每周额度组件。菜单栏只显示剩余百分比和重置倒计时（例如 `61% · 2天20时`），不显示图标，不承担聊天或任务执行。点击后展开余量详情、立即刷新、设置和退出。
+Codex Usage Strip 是一个极简的 macOS 菜单栏 Codex 每周额度组件。顶部状态栏显示圆形进度环和剩余百分比，悬浮提示显示重置倒计时。点击后可刷新、显示或隐藏桌面卡片、打开设置和退出，不承担聊天或任务执行。
 
-可选桌面悬浮条效果（默认关闭）：
+可选桌面卡片效果：
 
 ![Codex Usage Strip 桌面效果](docs/images/Codex-Usage-Strip-live.png)
 
 ## 核心能力
 
 - 只读取 Codex 总额度中的每周窗口，忽略模型独立额度。
-- 菜单栏以纯文字显示余量和倒计时，点击展开单色详情，随系统适配深浅色。
-- 桌面悬浮条默认关闭；需要时可在设置的“桌面悬浮条”开关中启用。
-- 读取失败时在详情中提示；已有余量会保留并标明是上次数据。
+- 读取失败时在菜单中提示；已有余量会保留并标明是上次数据。
 - 支持浮在所有窗口之上，或贴近桌面层显示。
 - 四角等比缩放，拖拽区域带明确光标反馈。
-- 6 套内置皮肤、3 种显示形态、5 种背景图片布局。
+- 顶部状态栏始终显示圆环和剩余百分比，桌面卡片可通过状态栏菜单或设置显示、隐藏，并记住选择。
+- 10 套内置皮肤、7 种卡片形态（含 3 种极简样式、1 种方形圆环样式）、5 种背景图片布局。
 - 自定义背景图、背景透明度和整体透明度。
 - 自定义状态话术，支持 `{remaining}`、`{used}`、`{countdown}`、`{resetTime}`、`{pace}`、`{updatedAt}`。
 - 开机启动、额度提醒、配置导入导出。
 - 通过 Sparkle 提供 EdDSA 校验的自动更新。
+
+开机启动在登录 macOS 后生效，关机前手动退出应用不会取消它。登录项优先指向“应用程序”中的正式安装位置；如移动或重新安装应用，下一次打开时会修复旧路径。若 macOS 要求批准，请在“系统设置 → 通用 → 登录项与扩展”中允许应用运行。
 
 ## 安装
 
@@ -77,11 +78,9 @@ make test
 
 - macOS 14 或更高版本。
 - 本机已安装并登录 ChatGPT/Codex，或已安装可执行的 Codex CLI。
-- 优先使用 `CODEX_PATH` 指定的可执行文件；未指定或不可执行时，按以下顺序查找：
-  1. `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`（新版 ChatGPT）。
-  2. `/Applications/ChatGPT.app/Contents/Resources/codex`（旧版 ChatGPT）。
-  3. `/Applications/Codex.app/Contents/Resources/codex`。
-  4. `/opt/homebrew/bin/codex`、`/usr/local/bin/codex`、`~/.local/bin/codex`。
+- 自动检测 `/Applications` 和用户 `Applications` 下的 ChatGPT/Codex，兼容内嵌 `codex-cli/CodexCLI.app/Contents/MacOS/codex` 与旧版路径；也支持常见 CLI 安装位置、当前进程的 `PATH` 和优先使用的 `CODEX_PATH`。
+
+从源码构建后，可运行 `".artifacts/Codex Usage Strip.app/Contents/MacOS/CodexUsageStrip" --check-quota` 检查真实额度读取。
 
 应用包内的路径用于兼容不同版本，不应视为官方承诺稳定的安装位置。官方 CLI 安装方式见 [Codex CLI 文档](https://developers.openai.com/codex/cli/)。额度查询独立启动本机 `codex app-server --stdio`，不连接共享 daemon socket。
 
@@ -115,13 +114,19 @@ make package
 
 用户可以在设置中直接选择 PNG、JPEG、WebP 或 HEIC 图片作为背景，并分别调整背景图片透明度与整个组件透明度。皮肤也可以通过 `.quotatheme` 文件导入导出。
 
+新增的 `System Light`、`System Dark` 和 `System Blue` 皮肤使用系统字体、低对比材质和单一语义色，适合搭配极简显示形态。
+
+`Square Light` 皮肤适合搭配“方形圆环”显示形态：圆环表达剩余额度，百分比固定在圆心，底部显示重置倒计时。
+
+“顶部状态栏”模式会隐藏桌面悬浮窗，仅在 macOS 状态栏显示圆形进度和剩余百分比；点击标签可刷新数据、打开设置或切换回桌面形态。
+
 ## 隐私
 
 Codex Usage Strip 不要求账号密码，不上传额度、背景图片或配置。额度请求由本机 Codex 进程完成。完整边界见 [PRIVACY.md](PRIVACY.md)。
 
 ## 项目状态
 
-当前开源候选版本为 `2.3.0 (6)`。功能已经冻结，后续变更优先处理兼容性、安全性和可维护性。
+当前开源候选版本为 `2.3.2 (8)`。后续变更优先处理兼容性、安全性和可维护性。
 
 ## 参与贡献
 

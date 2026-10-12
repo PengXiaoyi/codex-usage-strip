@@ -45,14 +45,31 @@ if let importIndex = CommandLine.arguments.firstIndex(of: "--import-background")
         exit(EXIT_FAILURE)
     }
 } else if CommandLine.arguments.contains("--login-status") {
-    switch SMAppService.mainApp.status {
-    case .notRegistered: print("not_registered")
-    case .enabled: print("enabled")
-    case .requiresApproval: print("requires_approval")
-    case .notFound: print("not_found")
-    @unknown default: print("unknown")
-    }
+    print(LaunchAtLoginManager.shared.statusDescription)
     exit(EXIT_SUCCESS)
+} else if CommandLine.arguments.contains("--repair-login-item") {
+    do {
+        try LaunchAtLoginManager.shared.setEnabled(true)
+        print(LaunchAtLoginManager.shared.statusDescription)
+        exit(EXIT_SUCCESS)
+    } catch {
+        fputs("FAIL \(error.localizedDescription)\n", stderr)
+        exit(EXIT_FAILURE)
+    }
+} else if CommandLine.arguments.contains("--check-quota") {
+    let service = CodexQuotaService()
+    service.refresh { result in
+        service.stop()
+        switch result {
+        case .success(let quota):
+            print("PASS live-weekly-quota remaining=\(Int(quota.remainingPercent.rounded()))%")
+            exit(EXIT_SUCCESS)
+        case .failure(let error):
+            fputs("FAIL \(error.localizedDescription)\n", stderr)
+            exit(EXIT_FAILURE)
+        }
+    }
+    RunLoop.main.run()
 } else if CommandLine.arguments.contains("--self-test") {
     do {
         try SelfTest.run()

@@ -12,10 +12,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     private let preferences = AppPreferences.shared
     private let themeStore = ThemeStore.shared
     private let preview = UsageStripView(frame: NSRect(origin: .zero, size: DisplayMode.strip.size))
+    private var previewWidthConstraint: NSLayoutConstraint!
+    private var previewHeightConstraint: NSLayoutConstraint!
     private let themePopup = NSPopUpButton()
     private let themeDescription = NSTextField(labelWithString: "")
-    private let modeControl = NSSegmentedControl(labels: DisplayMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
-    private let desktopWidgetSwitch = NSSwitch()
+    private let modeControl = NSSegmentedControl(labels: DisplayMode.desktopModes.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
+    private let desktopCardSwitch = NSSwitch()
     private let alwaysOnTopSwitch = NSSwitch()
     private let launchAtLoginSwitch = NSSwitch()
     private let notificationsSwitch = NSSwitch()
@@ -91,6 +93,9 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         tabs.addTabViewItem(makeMaintenanceTab())
         content.addSubview(tabs)
 
+        previewWidthConstraint = preview.widthAnchor.constraint(equalToConstant: DisplayMode.strip.size.width)
+        previewHeightConstraint = preview.heightAnchor.constraint(equalToConstant: DisplayMode.strip.size.height)
+
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: content.topAnchor, constant: 22),
             header.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 28),
@@ -98,8 +103,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
             preview.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 18),
             preview.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            preview.widthAnchor.constraint(equalToConstant: DisplayMode.strip.size.width),
-            preview.heightAnchor.constraint(equalToConstant: DisplayMode.strip.size.height),
+            previewWidthConstraint,
+            previewHeightConstraint,
 
             tabs.topAnchor.constraint(equalTo: preview.bottomAnchor, constant: 18),
             tabs.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 22),
@@ -119,8 +124,10 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         modeControl.target = self
         modeControl.action = #selector(modeChanged)
 
-        desktopWidgetSwitch.target = self
-        desktopWidgetSwitch.action = #selector(switchChanged)
+        desktopCardSwitch.target = self
+        desktopCardSwitch.action = #selector(desktopCardChanged)
+        desktopCardSwitch.toolTip = "状态栏始终显示额度；此开关只控制桌面卡片。"
+
         alwaysOnTopSwitch.target = self
         alwaysOnTopSwitch.action = #selector(switchChanged)
         launchAtLoginSwitch.target = self
@@ -175,13 +182,13 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         stack.distribution = .fill
         stack.spacing = 13
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
-        stack.addArrangedSubview(row(label: "桌面悬浮条", control: desktopWidgetSwitch))
         stack.addArrangedSubview(row(label: "皮肤", control: themeControl))
         stack.addArrangedSubview(row(label: "背景图片", control: backgroundControl))
         stack.addArrangedSubview(row(label: "图片方式", control: backgroundModePopup))
         stack.addArrangedSubview(row(label: "背景透明度", control: percentControl(backgroundOpacitySlider, label: backgroundOpacityLabel)))
         stack.addArrangedSubview(row(label: "整体透明度", control: percentControl(overallOpacitySlider, label: overallOpacityLabel)))
-        stack.addArrangedSubview(row(label: "显示形态", control: modeControl))
+        stack.addArrangedSubview(row(label: "显示桌面卡片", control: desktopCardSwitch))
+        stack.addArrangedSubview(row(label: "卡片形态", control: modeControl))
         stack.addArrangedSubview(row(label: "始终置顶", control: alwaysOnTopSwitch))
         stack.addArrangedSubview(row(label: "开机自动启动", control: launchAtLoginSwitch))
         stack.addArrangedSubview(row(label: "额度提醒", control: notificationsSwitch))
@@ -320,8 +327,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
             themePopup.selectItem(at: index)
         }
         updateThemeDescription()
-        modeControl.selectedSegment = DisplayMode.allCases.firstIndex(of: preferences.displayMode) ?? 1
-        desktopWidgetSwitch.state = preferences.showDesktopWidget ? .on : .off
+        modeControl.selectedSegment = DisplayMode.desktopModes.firstIndex(of: preferences.displayMode) ?? 1
+        desktopCardSwitch.state = preferences.showDesktopCard ? .on : .off
         alwaysOnTopSwitch.state = preferences.alwaysOnTop ? .on : .off
         launchAtLoginSwitch.state = isLaunchAtLoginConfigured ? .on : .off
         notificationsSwitch.state = preferences.notificationsEnabled ? .on : .off
@@ -350,8 +357,12 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
     private func updatePreview() {
         let now = Date()
+        let mode = preferences.displayMode
         preview.theme = themeStore.theme(id: preferences.themeID)
-        preview.displayMode = .strip
+        preview.displayMode = mode
+        previewWidthConstraint.constant = mode.size.width
+        previewHeightConstraint.constant = mode.size.height
+        preview.setFrameSize(mode.size)
         preview.phrases = preferences.phraseSet
         preview.criticalThreshold = preferences.criticalThreshold
         preview.backgroundImage = BackgroundAssetStore.currentImage(preferences: preferences)
@@ -395,12 +406,17 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
     @objc private func modeChanged() {
         guard modeControl.selectedSegment >= 0 else { return }
-        preferences.displayMode = DisplayMode.allCases[modeControl.selectedSegment]
+        preferences.displayMode = DisplayMode.desktopModes[modeControl.selectedSegment]
+        updatePreview()
+        onPreferencesChanged?()
+    }
+
+    @objc private func desktopCardChanged() {
+        preferences.showDesktopCard = desktopCardSwitch.state == .on
         onPreferencesChanged?()
     }
 
     @objc private func switchChanged() {
-        preferences.showDesktopWidget = desktopWidgetSwitch.state == .on
         preferences.alwaysOnTop = alwaysOnTopSwitch.state == .on
         preferences.notificationsEnabled = notificationsSwitch.state == .on
         onPreferencesChanged?()

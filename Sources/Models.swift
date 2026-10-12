@@ -5,12 +5,24 @@ enum DisplayMode: String, CaseIterable, Codable {
     case pill
     case strip
     case card
+    case minimalNumber
+    case minimalLine
+    case minimalCard
+    case squareCircular
+    case statusBar
+
+    static var desktopModes: [DisplayMode] { allCases.filter { $0 != .statusBar } }
 
     var title: String {
         switch self {
         case .pill: return "胶囊"
         case .strip: return "横条"
         case .card: return "卡片"
+        case .minimalNumber: return "极简数字"
+        case .minimalLine: return "极简细线"
+        case .minimalCard: return "极简卡片"
+        case .squareCircular: return "方形圆环"
+        case .statusBar: return "顶部状态栏"
         }
     }
 
@@ -19,6 +31,11 @@ enum DisplayMode: String, CaseIterable, Codable {
         case .pill: return NSSize(width: 286, height: 48)
         case .strip: return NSSize(width: 340, height: 82)
         case .card: return NSSize(width: 340, height: 124)
+        case .minimalNumber: return NSSize(width: 218, height: 44)
+        case .minimalLine: return NSSize(width: 360, height: 40)
+        case .minimalCard: return NSSize(width: 320, height: 86)
+        case .squareCircular: return NSSize(width: 132, height: 132)
+        case .statusBar: return NSSize(width: 340, height: 82)
         }
     }
 
@@ -179,9 +196,13 @@ final class AppPreferences {
         set { defaults.set(newValue.rawValue, forKey: "displayMode") }
     }
 
-    var showDesktopWidget: Bool {
-        get { defaults.bool(forKey: "showDesktopWidget") }
-        set { defaults.set(newValue, forKey: "showDesktopWidget") }
+    var showDesktopCard: Bool {
+        get {
+            if defaults.object(forKey: "showDesktopCard") != nil { return defaults.bool(forKey: "showDesktopCard") }
+            if defaults.object(forKey: "showDesktopWidget") != nil { return defaults.bool(forKey: "showDesktopWidget") }
+            return true
+        }
+        set { defaults.set(newValue, forKey: "showDesktopCard") }
     }
 
     var alwaysOnTop: Bool {
@@ -281,6 +302,10 @@ final class AppPreferences {
 
     private init() {
         LegacyMigration.migrateDefaults(to: defaults)
+        if displayMode == .statusBar {
+            if defaults.object(forKey: "showDesktopCard") == nil { showDesktopCard = false }
+            displayMode = .strip
+        }
     }
 }
 

@@ -103,6 +103,11 @@ final class UsageStripView: NSView {
         case .pill: drawPill(quota, state: state)
         case .strip: drawStrip(quota, state: state)
         case .card: drawCard(quota, state: state)
+        case .minimalNumber: drawMinimalNumber(quota, state: state)
+        case .minimalLine: drawMinimalLine(quota, state: state)
+        case .minimalCard: drawMinimalCard(quota, state: state)
+        case .squareCircular: drawSquareCircular(quota, state: state)
+        case .statusBar: drawMinimalLine(quota, state: state)
         }
     }
 
@@ -183,32 +188,8 @@ final class UsageStripView: NSView {
         NSGraphicsContext.restoreGraphicsState()
 
         NSColor(hex: theme.border).setStroke()
-        path.lineWidth = theme.id == "terminal" ? 1.5 : 1
+        path.lineWidth = theme.id.hasPrefix("system-") ? 0.75 : theme.id == "terminal" ? 1.5 : 1
         path.stroke()
-        drawResizeHandles()
-    }
-
-    private func drawResizeHandles() {
-        let inset: CGFloat = 5.5
-        let length: CGFloat = 5
-        let corners: [(ResizeCorner, NSPoint, CGFloat, CGFloat)] = [
-            (.topLeft, NSPoint(x: inset, y: inset), 1, 1),
-            (.topRight, NSPoint(x: bounds.maxX - inset, y: inset), -1, 1),
-            (.bottomLeft, NSPoint(x: inset, y: bounds.maxY - inset), 1, -1),
-            (.bottomRight, NSPoint(x: bounds.maxX - inset, y: bounds.maxY - inset), -1, -1)
-        ]
-        for (corner, point, xDirection, yDirection) in corners {
-            let color = corner == hoveredResizeCorner
-                ? NSColor(hex: theme.accent)
-                : NSColor(hex: theme.border).withAlphaComponent(0.62)
-            color.setStroke()
-            let handle = NSBezierPath()
-            handle.move(to: NSPoint(x: point.x + xDirection * length, y: point.y))
-            handle.line(to: point)
-            handle.line(to: NSPoint(x: point.x, y: point.y + yDirection * length))
-            handle.lineWidth = corner == hoveredResizeCorner ? 1.8 : 1
-            handle.stroke()
-        }
     }
 
     private func updateResizeHover(with event: NSEvent) {
@@ -323,7 +304,13 @@ final class UsageStripView: NSView {
 
     private func drawPill(_ quota: WeeklyQuota, state: PaceState) {
         let percent = quota.remainingPercent
-        let barRect = NSRect(x: 16, y: 18, width: 144, height: 12)
+        let systemSpacing = theme.id.hasPrefix("system-")
+        let barRect = NSRect(
+            x: systemSpacing ? 18 : 16,
+            y: systemSpacing ? 21 : 18,
+            width: systemSpacing ? 140 : 144,
+            height: systemSpacing ? 6 : 12
+        )
         drawProgress(in: barRect, percent: percent, state: state)
 
         drawText(
@@ -346,7 +333,13 @@ final class UsageStripView: NSView {
 
     private func drawStrip(_ quota: WeeklyQuota, state: PaceState) {
         let percent = quota.remainingPercent
-        let barRect = NSRect(x: 18, y: 18, width: bounds.width - 104, height: 12)
+        let systemSpacing = theme.id.hasPrefix("system-")
+        let barRect = NSRect(
+            x: systemSpacing ? 20 : 18,
+            y: systemSpacing ? 21 : 18,
+            width: bounds.width - (systemSpacing ? 112 : 104),
+            height: systemSpacing ? 6 : 12
+        )
         drawProgress(in: barRect, percent: percent, state: state)
         drawText(
             "\(Int(percent.rounded()))%",
@@ -379,6 +372,7 @@ final class UsageStripView: NSView {
 
     private func drawCard(_ quota: WeeklyQuota, state: PaceState) {
         let percent = quota.remainingPercent
+        let systemSpacing = theme.id.hasPrefix("system-")
         drawText(
             "WEEKLY QUOTA",
             rect: NSRect(x: 18, y: 14, width: 160, height: 18),
@@ -396,7 +390,16 @@ final class UsageStripView: NSView {
             alignment: .right
         )
 
-        drawProgress(in: NSRect(x: 18, y: 45, width: bounds.width - 36, height: 13), percent: percent, state: state)
+        drawProgress(
+            in: NSRect(
+                x: systemSpacing ? 20 : 18,
+                y: systemSpacing ? 48 : 45,
+                width: bounds.width - (systemSpacing ? 40 : 36),
+                height: systemSpacing ? 7 : 13
+            ),
+            percent: percent,
+            state: state
+        )
 
         let phrase = PhraseEngine.phrase(for: quota, state: state, phrases: phrases, now: now)
         drawText(
@@ -426,6 +429,157 @@ final class UsageStripView: NSView {
         )
     }
 
+    private func drawMinimalNumber(_ quota: WeeklyQuota, state: PaceState) {
+        let percent = quota.remainingPercent
+        let dot = NSBezierPath(ovalIn: NSRect(x: 18, y: 19, width: 6, height: 6))
+        theme.accentColor(for: state).setFill()
+        dot.fill()
+
+        drawText(
+            "\(Int(percent.rounded()))%",
+            rect: NSRect(x: 36, y: 6, width: 64, height: 30),
+            size: 22,
+            weight: .bold,
+            color: NSColor(hex: theme.primaryText),
+            numeric: true
+        )
+        drawText(
+            "本周剩余",
+            rect: NSRect(x: 112, y: 7, width: bounds.width - 126, height: 17),
+            size: 10.5,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText)
+        )
+        drawText(
+            PhraseEngine.countdown(to: quota.resetsAt, now: now),
+            rect: NSRect(x: 112, y: 22, width: bounds.width - 126, height: 16),
+            size: 10,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText),
+            numeric: true
+        )
+    }
+
+    private func drawMinimalLine(_ quota: WeeklyQuota, state: PaceState) {
+        let percent = quota.remainingPercent
+        drawText(
+            "\(Int(percent.rounded()))%",
+            rect: NSRect(x: 18, y: 5, width: 62, height: 29),
+            size: 20,
+            weight: .bold,
+            color: NSColor(hex: theme.primaryText),
+            numeric: true
+        )
+        drawProgress(
+            in: NSRect(x: 96, y: 17, width: bounds.width - 198, height: 5),
+            percent: percent,
+            state: state
+        )
+        drawText(
+            PhraseEngine.countdown(to: quota.resetsAt, now: now),
+            rect: NSRect(x: bounds.width - 86, y: 11, width: 70, height: 18),
+            size: 10,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText),
+            numeric: true,
+            alignment: .right
+        )
+    }
+
+    private func drawMinimalCard(_ quota: WeeklyQuota, state: PaceState) {
+        let percent = quota.remainingPercent
+        drawText(
+            "本周剩余",
+            rect: NSRect(x: 20, y: 11, width: 90, height: 18),
+            size: 11,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText)
+        )
+        drawText(
+            "\(Int(percent.rounded()))%",
+            rect: NSRect(x: bounds.width - 92, y: 6, width: 72, height: 32),
+            size: 23,
+            weight: .bold,
+            color: NSColor(hex: theme.primaryText),
+            numeric: true,
+            alignment: .right
+        )
+        drawProgress(
+            in: NSRect(x: 20, y: 42, width: bounds.width - 40, height: 5),
+            percent: percent,
+            state: state
+        )
+        drawText(
+            "重置于",
+            rect: NSRect(x: 20, y: 59, width: 48, height: 17),
+            size: 10,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText)
+        )
+        drawText(
+            PhraseEngine.countdown(to: quota.resetsAt, now: now),
+            rect: NSRect(x: 70, y: 58, width: bounds.width - 90, height: 18),
+            size: 10.5,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText),
+            numeric: true
+        )
+    }
+
+    private func drawSquareCircular(_ quota: WeeklyQuota, state: PaceState) {
+        let percent = quota.remainingPercent
+        let lineWidth: CGFloat = 7
+        let ringSize = min(bounds.width - 36, bounds.height - 34)
+        let ringRect = NSRect(
+            x: bounds.midX - ringSize / 2,
+            y: 14,
+            width: ringSize,
+            height: ringSize
+        ).insetBy(dx: lineWidth / 2, dy: lineWidth / 2)
+        let center = NSPoint(x: ringRect.midX, y: ringRect.midY)
+        let radius = ringRect.width / 2
+
+        let track = NSBezierPath(ovalIn: ringRect)
+        track.lineWidth = lineWidth
+        NSColor(hex: theme.track).setStroke()
+        track.stroke()
+
+        let progress = CGFloat(min(max(percent, 0), 100) / 100)
+        if progress > 0 {
+            let arc = NSBezierPath()
+            arc.appendArc(
+                withCenter: center,
+                radius: radius,
+                startAngle: 90,
+                endAngle: 90 - 360 * progress,
+                clockwise: true
+            )
+            arc.lineWidth = lineWidth
+            arc.lineCapStyle = .round
+            theme.accentColor(for: state).setStroke()
+            arc.stroke()
+        }
+
+        drawText(
+            "\(Int(percent.rounded()))%",
+            rect: NSRect(x: center.x - 38, y: center.y - 18, width: 76, height: 36),
+            size: 28,
+            weight: .bold,
+            color: NSColor(hex: theme.primaryText),
+            numeric: true,
+            alignment: .center
+        )
+        drawText(
+            PhraseEngine.countdown(to: quota.resetsAt, now: now),
+            rect: NSRect(x: 16, y: bounds.height - 23, width: bounds.width - 32, height: 15),
+            size: 9.5,
+            weight: .medium,
+            color: NSColor(hex: theme.secondaryText),
+            numeric: true,
+            alignment: .center
+        )
+    }
+
     private func drawProgress(in rect: NSRect, percent: Double, state: PaceState) {
         let accent = theme.accentColor(for: state)
         let progress = CGFloat(min(max(percent, 0), 100) / 100)
@@ -450,7 +604,7 @@ final class UsageStripView: NSView {
             marker.fill()
 
         case .segmented:
-            let count = 16
+            let count = 8
             let gap: CGFloat = 3
             let segmentWidth = (rect.width - gap * CGFloat(count - 1)) / CGFloat(count)
             let filled = Int((Double(count) * percent / 100).rounded(.up))

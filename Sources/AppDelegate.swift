@@ -4,15 +4,33 @@ import Foundation
 import ServiceManagement
 import UserNotifications
 
+enum StatusRingGeometry {
+    static func displayedProgress(
+        for percent: Double,
+        diameter: Double,
+        minimumGap: Double = 2,
+        completeThreshold: Double = 99.5
+    ) -> Double {
+        let progress = min(max(percent, 0), 100) / 100
+        guard progress > 0 else { return 0 }
+        if percent >= completeThreshold { return 1 }
+
+        let circumference = Double.pi * diameter
+        let maximumVisibleProgress = max(0, 1 - minimumGap / circumference)
+        return min(progress, maximumVisibleProgress)
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UsageStripViewDelegate {
     private let preferences = AppPreferences.shared
     private let service = CodexQuotaService()
     private let appUpdateController = AppUpdateController()
-    private var menuBar: MenuBarController!
     private var quotaError: String?
     private var isRefreshing = false
     private var panel: NSPanel!
+    private var statusItem: NSStatusItem?
+    private var materialView: NSVisualEffectView!
     private var usageView: UsageStripView!
     private var refreshTimer: Timer?
     private var tickTimer: Timer?
@@ -24,9 +42,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         LegacyMigration.migrateApplicationSupport(preferences: preferences)
-        try? LaunchAtLoginManager.shared.migrateLegacyRegistrationIfNeeded()
+        do {
+            try LaunchAtLoginManager.shared.repairRegistrationIfNeeded()
+        } catch {
+            showAlert(title: "开机启动修复失败", detail: error.localizedDescription)
+        }
+        if CommandLine.arguments.contains("--status-bar") {
+            preferences.showDesktopCard = false
+        }
         createPanel()
-        createMenuBar()
+        createStatusItem()
         createAboutController()
         createSettingsController()
         restoreOrSetDefaultPosition()
@@ -54,17 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         refreshTimer?.invalidate()
         tickTimer?.invalidate()
         service.stop()
-    }
-
-    private func createMenuBar() {
-        menuBar = MenuBarController()
-        menuBar.onRefresh = { [weak self] in self?.refreshNow() }
-        menuBar.onSettings = { [weak self] in self?.openSettings() }
-        menuBar.onQuit = { NSApp.terminate(nil) }
-    }
-
-    private func updateMenuBar() {
-        menuBar.update(quota: usageView.quota, error: quotaError, refreshing: isRefreshing)
+        if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
     }
 
     private func createPanel() {
@@ -85,9 +100,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
+        materialView = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+        materialView.autoresizingMask = [.width, .height]
+        materialView.wantsLayer = true
+        materialView.layer?.masksToBounds = true
+
         usageView = UsageStripView(frame: NSRect(origin: .zero, size: size))
+        usageView.autoresizingMask = [.width, .height]
         usageView.delegate = self
-        panel.contentView = usageView
+        materialView.addSubview(usageView)
+        panel.contentView = materialView
+    }
+
+    private func createStatusItem() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem?.isVisible = true
     }
 
     private func createSettingsController() {
@@ -116,13 +143,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     }
 
     private func applyPreferences(rescheduleRefresh: Bool) {
-        usageView.theme = ThemeStore.shared.theme(id: preferences.themeID)
+        let selectedTheme = ThemeStore.shared.theme(id: preferences.themeID)
+        usageView.theme = selectedTheme
         usageView.displayMode = preferences.displayMode
         usageView.phrases = preferences.phraseSet
         usageView.criticalThreshold = preferences.criticalThreshold
         usageView.backgroundImage = BackgroundAssetStore.currentImage(preferences: preferences)
         usageView.backgroundImageOpacity = preferences.backgroundImageOpacity
         usageView.backgroundImageMode = preferences.backgroundImageMode
+        let isSystemTheme = selectedTheme.id.hasPrefix("system-")
+        materialView.material = isSystemTheme ? .hudWindow : .titlebar
+        materialView.blendingMode = isSystemTheme ? .behindWindow : .withinWindow
+        materialView.state = isSystemTheme ? .active : .inactive
+        materialView.isEmphasized = false
+        materialView.layer?.cornerRadius = CGFloat(selectedTheme.cornerRadius)
         panel.alphaValue = CGFloat(preferences.overallOpacity)
 
         let oldFrame = panel.frame
@@ -137,6 +171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         usageView.frame = NSRect(origin: .zero, size: size)
         usageView.bounds = NSRect(origin: .zero, size: mode.size)
         panel.invalidateCursorRects(for: usageView)
+        updateStatusItem(rebuildMenu: true)
         applyWindowLevel()
 
         if preferences.notificationsEnabled {
@@ -146,14 +181,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     }
 
     private func applyWindowLevel() {
+        guard preferences.showDesktopCard else {
+            panel.orderOut(nil)
+            return
+        }
         if preferences.alwaysOnTop {
             panel.level = .floating
         } else {
             let desktopLevel = Int(CGWindowLevelForKey(.desktopWindow)) + 1
             panel.level = NSWindow.Level(rawValue: desktopLevel)
         }
-        if preferences.showDesktopWidget { panel.orderFrontRegardless() }
-        else { panel.orderOut(nil) }
+        panel.orderFrontRegardless()
     }
 
     private func scheduleRefreshTimer() {
@@ -182,7 +220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     private func refreshNow() {
         guard !isRefreshing else { return }
         isRefreshing = true
-        updateMenuBar()
+        updateStatusItem(rebuildMenu: true)
         if usageView.quota == nil { usageView.errorText = nil }
         service.refresh { [weak self] result in
             guard let self else { return }
@@ -199,7 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
                     self.usageView.errorText = error.localizedDescription
                 }
             }
-            self.updateMenuBar()
+            self.updateStatusItem(rebuildMenu: true)
         }
     }
 
@@ -296,14 +334,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         panel.setFrameOrigin(frame.origin)
     }
 
+    private func updateStatusItem(rebuildMenu: Bool = false) {
+        guard let statusItem else { return }
+        statusItem.isVisible = true
+        guard let button = statusItem.button else { return }
+
+        if rebuildMenu || statusItem.menu == nil {
+            statusItem.menu = makeControlMenu()
+        }
+
+        let quota = usageView.quota
+        let percent = quota?.remainingPercent
+        let title = percent.map { "\(Int($0.rounded()))%" } ?? "—"
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor.labelColor
+        ]
+
+        button.image = makeStatusRingImage(percent: percent)
+        button.imagePosition = .imageLeft
+        button.imageScaling = .scaleProportionallyDown
+        button.attributedTitle = NSAttributedString(string: title, attributes: titleAttributes)
+        button.toolTip = quota.map { "Codex 额度重置还剩 \(PhraseEngine.coarseCountdown(to: $0.resetsAt))" }
+            ?? usageView.errorText ?? "正在读取 Codex 周额度"
+        button.setAccessibilityLabel(button.toolTip ?? "Codex 周额度")
+    }
+
+    private func makeStatusRingImage(percent: Double?) -> NSImage {
+        let image = NSImage(size: NSSize(width: 15, height: 15), flipped: false) { _ in
+            let rect = NSRect(x: 1.5, y: 1.5, width: 12, height: 12)
+            let lineWidth: CGFloat = 1.7
+            let track = NSBezierPath(ovalIn: rect)
+            track.lineWidth = lineWidth
+            NSColor.labelColor.withAlphaComponent(0.18).setStroke()
+            track.stroke()
+
+            guard let percent else { return true }
+            let displayedProgress = CGFloat(StatusRingGeometry.displayedProgress(
+                for: percent,
+                diameter: Double(rect.width)
+            ))
+            guard displayedProgress > 0 else { return true }
+
+            let color: NSColor = percent <= 5 ? .systemRed : percent <= 20 ? .systemOrange : .white
+            let arc = NSBezierPath()
+            arc.appendArc(
+                withCenter: NSPoint(x: rect.midX, y: rect.midY),
+                radius: rect.width / 2,
+                startAngle: 90,
+                endAngle: 90 - 360 * displayedProgress,
+                clockwise: true
+            )
+            arc.lineWidth = lineWidth
+            arc.lineCapStyle = .butt
+            color.setStroke()
+            arc.stroke()
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+
     func usageViewDidRequestRefresh() {
         refreshNow()
     }
 
     func usageViewDidRequestContextMenu(event: NSEvent, view: NSView) {
+        NSMenu.popUpContextMenu(makeControlMenu(), with: event, for: view)
+    }
+
+    private func makeControlMenu() -> NSMenu {
         let menu = NSMenu()
+        if let quotaError {
+            let message = usageView.quota == nil ? quotaError : "刷新失败，显示上次数据：\(quotaError)"
+            menu.addItem(NSMenuItem(title: message, action: nil, keyEquivalent: ""))
+            menu.addItem(.separator())
+        }
         menu.addItem(menuItem("打开设置…", #selector(openSettings)))
-        menu.addItem(menuItem("立即刷新", #selector(refreshAction)))
+        let refresh = menuItem(isRefreshing ? "正在刷新…" : "立即刷新", #selector(refreshAction))
+        refresh.isEnabled = !isRefreshing
+        menu.addItem(refresh)
+        let desktopCard = menuItem("显示桌面卡片", #selector(toggleDesktopCard))
+        desktopCard.state = preferences.showDesktopCard ? .on : .off
+        menu.addItem(desktopCard)
 
         let themeRoot = NSMenuItem(title: "切换皮肤", action: nil, keyEquivalent: "")
         let themeMenu = NSMenu()
@@ -317,9 +430,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         menu.setSubmenu(themeMenu, for: themeRoot)
         menu.addItem(themeRoot)
 
-        let modeRoot = NSMenuItem(title: "显示形态", action: nil, keyEquivalent: "")
+        let modeRoot = NSMenuItem(title: "卡片形态", action: nil, keyEquivalent: "")
         let modeMenu = NSMenu()
-        for mode in DisplayMode.allCases {
+        for mode in DisplayMode.desktopModes {
             let item = NSMenuItem(title: mode.title, action: #selector(selectMode(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = mode.rawValue
@@ -342,7 +455,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         menu.addItem(menuItem("关于 Codex Usage Strip…", #selector(showAboutAction)))
         menu.addItem(.separator())
         menu.addItem(menuItem("退出 Codex Usage Strip", #selector(quit)))
-        NSMenu.popUpContextMenu(menu, with: event, for: view)
+        return menu
     }
 
     func usageViewDidEndResize() {
@@ -362,7 +475,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     @objc private func openSettings() { settingsController?.present() }
     @objc private func tickTimerFired() {
         usageView.now = Date()
-        updateMenuBar()
+        updateStatusItem()
     }
     @objc private func refreshTimerFired() { refreshNow() }
     @objc private func refreshAction() { refreshNow() }
@@ -385,6 +498,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
 
     @objc private func toggleAlwaysOnTop() {
         preferences.alwaysOnTop.toggle()
+        applyPreferences(rescheduleRefresh: false)
+    }
+
+    @objc private func toggleDesktopCard() {
+        preferences.showDesktopCard.toggle()
         applyPreferences(rescheduleRefresh: false)
     }
 

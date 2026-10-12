@@ -19,7 +19,7 @@ struct PhraseEngine {
             "{remaining}": "\(Int(quota.remainingPercent.rounded()))",
             "{used}": "\(Int(quota.usedPercent.rounded()))",
             "{countdown}": countdown(to: quota.resetsAt, now: now),
-            "{resetTime}": resetFormatter.string(from: quota.resetsAt),
+            "{resetTime}": resetTimeString(for: quota.resetsAt),
             "{pace}": state.title,
             "{updatedAt}": updateFormatter.string(from: quota.updatedAt)
         ]
@@ -37,6 +37,23 @@ struct PhraseEngine {
         if days > 0 { return "\(days)天 \(String(format: "%02d", hours)):\(String(format: "%02d", minutes))" }
         if hours > 0 { return "\(hours)小时 \(String(format: "%02d", minutes))分" }
         return "\(max(minutes, 1))分钟"
+    }
+
+    static func coarseCountdown(to date: Date, now: Date = Date()) -> String {
+        let seconds = max(Int(date.timeIntervalSince(now)), 0)
+        guard seconds >= 3_600 else { return "不足1小时" }
+
+        let totalHours = seconds / 3_600
+        let days = totalHours / 24
+        let hours = totalHours % 24
+        if days > 0 {
+            return hours > 0 ? "\(days)天 \(hours)小时" : "\(days)天"
+        }
+        return "\(totalHours)小时"
+    }
+
+    static func resetTimeString(for date: Date) -> String {
+        resetFormatter.string(from: date)
     }
 
     private static let resetFormatter: DateFormatter = {
