@@ -16,7 +16,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
     private var previewHeightConstraint: NSLayoutConstraint!
     private let themePopup = NSPopUpButton()
     private let themeDescription = NSTextField(labelWithString: "")
-    private let modeControl = NSSegmentedControl(labels: DisplayMode.allCases.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
+    private let modeControl = NSSegmentedControl(labels: DisplayMode.desktopModes.map(\.title), trackingMode: .selectOne, target: nil, action: nil)
+    private let desktopCardSwitch = NSSwitch()
     private let alwaysOnTopSwitch = NSSwitch()
     private let launchAtLoginSwitch = NSSwitch()
     private let notificationsSwitch = NSSwitch()
@@ -123,6 +124,10 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         modeControl.target = self
         modeControl.action = #selector(modeChanged)
 
+        desktopCardSwitch.target = self
+        desktopCardSwitch.action = #selector(desktopCardChanged)
+        desktopCardSwitch.toolTip = "状态栏始终显示额度；此开关只控制桌面卡片。"
+
         alwaysOnTopSwitch.target = self
         alwaysOnTopSwitch.action = #selector(switchChanged)
         launchAtLoginSwitch.target = self
@@ -182,7 +187,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
         stack.addArrangedSubview(row(label: "图片方式", control: backgroundModePopup))
         stack.addArrangedSubview(row(label: "背景透明度", control: percentControl(backgroundOpacitySlider, label: backgroundOpacityLabel)))
         stack.addArrangedSubview(row(label: "整体透明度", control: percentControl(overallOpacitySlider, label: overallOpacityLabel)))
-        stack.addArrangedSubview(row(label: "显示形态", control: modeControl))
+        stack.addArrangedSubview(row(label: "显示桌面卡片", control: desktopCardSwitch))
+        stack.addArrangedSubview(row(label: "卡片形态", control: modeControl))
         stack.addArrangedSubview(row(label: "始终置顶", control: alwaysOnTopSwitch))
         stack.addArrangedSubview(row(label: "开机自动启动", control: launchAtLoginSwitch))
         stack.addArrangedSubview(row(label: "额度提醒", control: notificationsSwitch))
@@ -321,7 +327,8 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
             themePopup.selectItem(at: index)
         }
         updateThemeDescription()
-        modeControl.selectedSegment = DisplayMode.allCases.firstIndex(of: preferences.displayMode) ?? 1
+        modeControl.selectedSegment = DisplayMode.desktopModes.firstIndex(of: preferences.displayMode) ?? 1
+        desktopCardSwitch.state = preferences.showDesktopCard ? .on : .off
         alwaysOnTopSwitch.state = preferences.alwaysOnTop ? .on : .off
         launchAtLoginSwitch.state = isLaunchAtLoginConfigured ? .on : .off
         notificationsSwitch.state = preferences.notificationsEnabled ? .on : .off
@@ -399,7 +406,13 @@ final class SettingsWindowController: NSWindowController, NSTextFieldDelegate {
 
     @objc private func modeChanged() {
         guard modeControl.selectedSegment >= 0 else { return }
-        preferences.displayMode = DisplayMode.allCases[modeControl.selectedSegment]
+        preferences.displayMode = DisplayMode.desktopModes[modeControl.selectedSegment]
+        updatePreview()
+        onPreferencesChanged?()
+    }
+
+    @objc private func desktopCardChanged() {
+        preferences.showDesktopCard = desktopCardSwitch.state == .on
         onPreferencesChanged?()
     }
 

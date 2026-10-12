@@ -40,9 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         LegacyMigration.migrateApplicationSupport(preferences: preferences)
-        try? LaunchAtLoginManager.shared.migrateLegacyRegistrationIfNeeded()
+        do {
+            try LaunchAtLoginManager.shared.repairRegistrationIfNeeded()
+        } catch {
+            showAlert(title: "开机启动修复失败", detail: error.localizedDescription)
+        }
         if CommandLine.arguments.contains("--status-bar") {
-            preferences.displayMode = .statusBar
+            preferences.showDesktopCard = false
         }
         createPanel()
         createStatusItem()
@@ -108,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
 
     private func createStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem?.isVisible = false
+        statusItem?.isVisible = true
     }
 
     private func createSettingsController() {
@@ -175,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
     }
 
     private func applyWindowLevel() {
-        guard preferences.displayMode != .statusBar else {
+        guard preferences.showDesktopCard else {
             panel.orderOut(nil)
             return
         }
@@ -324,9 +328,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
 
     private func updateStatusItem(rebuildMenu: Bool = false) {
         guard let statusItem else { return }
-        let isStatusBarMode = preferences.displayMode == .statusBar
-        statusItem.isVisible = isStatusBarMode
-        guard isStatusBarMode, let button = statusItem.button else { return }
+        statusItem.isVisible = true
+        guard let button = statusItem.button else { return }
 
         if rebuildMenu || statusItem.menu == nil {
             statusItem.menu = makeControlMenu()
@@ -345,7 +348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         button.imageScaling = .scaleProportionallyDown
         button.attributedTitle = NSAttributedString(string: title, attributes: titleAttributes)
         button.toolTip = quota.map { "Codex 额度重置还剩 \(PhraseEngine.coarseCountdown(to: $0.resetsAt))" }
-            ?? "正在读取 Codex 周额度"
+            ?? usageView.errorText ?? "正在读取 Codex 周额度"
         button.setAccessibilityLabel(button.toolTip ?? "Codex 周额度")
     }
 
@@ -396,6 +399,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         let menu = NSMenu()
         menu.addItem(menuItem("打开设置…", #selector(openSettings)))
         menu.addItem(menuItem("立即刷新", #selector(refreshAction)))
+        let desktopCard = menuItem("显示桌面卡片", #selector(toggleDesktopCard))
+        desktopCard.state = preferences.showDesktopCard ? .on : .off
+        menu.addItem(desktopCard)
 
         let themeRoot = NSMenuItem(title: "切换皮肤", action: nil, keyEquivalent: "")
         let themeMenu = NSMenu()
@@ -409,9 +415,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
         menu.setSubmenu(themeMenu, for: themeRoot)
         menu.addItem(themeRoot)
 
-        let modeRoot = NSMenuItem(title: "显示形态", action: nil, keyEquivalent: "")
+        let modeRoot = NSMenuItem(title: "卡片形态", action: nil, keyEquivalent: "")
         let modeMenu = NSMenu()
-        for mode in DisplayMode.allCases {
+        for mode in DisplayMode.desktopModes {
             let item = NSMenuItem(title: mode.title, action: #selector(selectMode(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = mode.rawValue
@@ -477,6 +483,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Usag
 
     @objc private func toggleAlwaysOnTop() {
         preferences.alwaysOnTop.toggle()
+        applyPreferences(rescheduleRefresh: false)
+    }
+
+    @objc private func toggleDesktopCard() {
+        preferences.showDesktopCard.toggle()
         applyPreferences(rescheduleRefresh: false)
     }
 

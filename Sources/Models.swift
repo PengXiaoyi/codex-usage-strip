@@ -11,6 +11,8 @@ enum DisplayMode: String, CaseIterable, Codable {
     case squareCircular
     case statusBar
 
+    static var desktopModes: [DisplayMode] { allCases.filter { $0 != .statusBar } }
+
     var title: String {
         switch self {
         case .pill: return "胶囊"
@@ -194,6 +196,11 @@ final class AppPreferences {
         set { defaults.set(newValue.rawValue, forKey: "displayMode") }
     }
 
+    var showDesktopCard: Bool {
+        get { defaults.object(forKey: "showDesktopCard") == nil ? true : defaults.bool(forKey: "showDesktopCard") }
+        set { defaults.set(newValue, forKey: "showDesktopCard") }
+    }
+
     var alwaysOnTop: Bool {
         get { defaults.object(forKey: "alwaysOnTop") == nil ? true : defaults.bool(forKey: "alwaysOnTop") }
         set { defaults.set(newValue, forKey: "alwaysOnTop") }
@@ -291,6 +298,10 @@ final class AppPreferences {
 
     private init() {
         LegacyMigration.migrateDefaults(to: defaults)
+        if displayMode == .statusBar {
+            if defaults.object(forKey: "showDesktopCard") == nil { showDesktopCard = false }
+            displayMode = .strip
+        }
     }
 }
 

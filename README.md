@@ -12,11 +12,14 @@ Codex Usage Strip 是一个常驻 macOS 桌面的 Codex 每周额度组件。它
 - 同时显示剩余百分比、进度条、重置时间和倒计时。
 - 支持浮在所有窗口之上，或贴近桌面层显示。
 - 四角等比缩放，拖拽区域带明确光标反馈。
-- 10 套内置皮肤、8 种显示形态（含 3 种极简样式、1 种方形圆环样式和顶部状态栏模式）、5 种背景图片布局。
+- 顶部状态栏始终显示圆环和剩余百分比，桌面卡片可通过状态栏菜单或设置显示、隐藏，并记住选择。
+- 10 套内置皮肤、7 种卡片形态（含 3 种极简样式、1 种方形圆环样式）、5 种背景图片布局。
 - 自定义背景图、背景透明度和整体透明度。
 - 自定义状态话术，支持 `{remaining}`、`{used}`、`{countdown}`、`{resetTime}`、`{pace}`、`{updatedAt}`。
 - 开机启动、额度提醒、配置导入导出。
 - 通过 Sparkle 提供 EdDSA 校验的自动更新。
+
+开机启动在登录 macOS 后生效，关机前手动退出应用不会取消它。登录项优先指向“应用程序”中的正式安装位置；如移动或重新安装应用，下一次打开时会修复旧路径。若 macOS 要求批准，请在“系统设置 → 通用 → 登录项与扩展”中允许应用运行。
 
 ## 安装
 
@@ -73,7 +76,9 @@ make test
 
 - macOS 14 或更高版本。
 - 本机已安装并登录 ChatGPT/Codex，或已安装可执行的 Codex CLI。
-- 当前版本优先读取 `/Applications/ChatGPT.app/Contents/Resources/codex`，也支持 `CODEX_PATH` 指定路径。
+- 自动检测 `/Applications` 和用户 `Applications` 下的 ChatGPT/Codex，兼容内嵌 `codex-cli/CodexCLI.app/Contents/MacOS/codex` 与旧版路径；也支持常见 CLI 安装位置、当前进程的 `PATH` 和优先使用的 `CODEX_PATH`。
+
+从源码构建后，可运行 `".artifacts/Codex Usage Strip.app/Contents/MacOS/CodexUsageStrip" --check-quota` 检查真实额度读取。
 
 Codex Usage Strip 使用本机 Codex 的 `account/rateLimits/read` 接口读取额度。该接口不是稳定的公开兼容承诺；上游格式变化时，Codex Usage Strip 可能需要同步更新。
 
@@ -117,7 +122,7 @@ Codex Usage Strip 不要求账号密码，不上传额度、背景图片或配�
 
 ## 项目状态
 
-当前开源候选版本为 `2.3.1 (7)`。功能已经冻结，后续变更优先处理兼容性、安全性和可维护性。
+当前开源候选版本为 `2.3.2 (8)`。后续变更优先处理兼容性、安全性和可维护性。
 
 ## 参与贡献
 

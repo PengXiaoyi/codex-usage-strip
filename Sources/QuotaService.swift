@@ -60,7 +60,7 @@ final class CodexQuotaService {
 
     private func ensureServer() throws {
         if let process, process.isRunning { return }
-        guard let codexPath = resolveCodexPath() else { throw QuotaError.codexNotFound }
+        guard let codexPath = Self.resolveCodexPath() else { throw QuotaError.codexNotFound }
 
         let newProcess = Process()
         let stdout = Pipe()
@@ -132,17 +132,31 @@ final class CodexQuotaService {
         }
     }
 
-    private func resolveCodexPath() -> String? {
-        let home = NSHomeDirectory()
-        let candidates = [
-            ProcessInfo.processInfo.environment["CODEX_PATH"],
-            "/Applications/ChatGPT.app/Contents/Resources/codex",
-            "/Applications/Codex.app/Contents/Resources/codex",
+    static func resolveCodexPath(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        home: String = NSHomeDirectory(),
+        isExecutable: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) -> String? {
+        let bundledCandidates = ["/Applications", "\(home)/Applications"].flatMap { directory in
+            ["ChatGPT.app", "Codex.app"].flatMap { app in
+                [
+                    "\(directory)/\(app)/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+                    "\(directory)/\(app)/Contents/Resources/codex",
+                    "\(directory)/\(app)/Contents/Resources/codex-cli/bin/codex"
+                ]
+            }
+        }
+        let cliCandidates = [
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex",
             "\(home)/.local/bin/codex"
-        ].compactMap { $0 }
-        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+        ]
+        let pathCandidates = (environment["PATH"] ?? "").split(separator: ":")
+            .filter { $0.hasPrefix("/") }
+            .map { "\($0)/codex" }
+        let candidates = [environment["CODEX_PATH"]].compactMap { $0 }
+            + bundledCandidates + cliCandidates + pathCandidates
+        return candidates.first { !$0.isEmpty && isExecutable($0) }
     }
 
     static func parseWeeklyQuota(from object: [String: Any]) -> WeeklyQuota? {
